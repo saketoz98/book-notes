@@ -428,6 +428,33 @@ Hash table has its limitations too:
 
 #### SSTables and LSM-Trees
 
+### How it differs from Hash Index?
+- Use LSM tree (Balanced Binary Search tree - Red-black, AVL etc) instead of using hash table to store index in memory.
+ - LSM trees allows insertion in sorted order (Balanced Binary Searc trees) in O(log(n)) time. Sorted keys can be retrieved with in-order traversal.   
+- Problems with just using LSM trees in memory:
+ - Not durable (Computer shuts down -> Index is lost)
+   - Use Write Ahead Log during insertion. This helps to replay log events and generate the latest LSM tree
+   - Makes writes slower but gives durability. (Need to deal with Disk I/O)
+ - RAM has less space
+   - Hash index needs all keys to fit in memory but not LSM tree index.
+   - SSTables come into picture here.
+   - Problem: LSM tree gotten too big (some threshold), how to deal with it?
+   - Convert LSM tree into SSTable which is a immutable sorted list of all the key <-> value pairs on disk (stored in a file).
+     - Conversion easily possible through in-order traversal (O(n) time).
+   - What's the point of all this?
+     - All the writes goes into LSM tree
+     - All reads first hit the in memory LSM tree -> if key not found, goes to disk to check the most recent SSTable.
+       - As records are sorted, each read in SSTable is O(log(n))
+     - Delete creates a tombstone in the most recent SSTable
+ - **LSM Optimisations**
+  - Improve SSTable read time by using **Sparse Index** (Store some of the key-value pairs into its own index -> during read no need to start binary search over entire SSTable file. Can use sparse index to quickly narrow down the range)
+  - Bloom Filters: Probabilitstic model to predict whether key exist in the table or not. (Discussed later in the book)
+ - **Compaction**
+  - Can use merge sort technique to merge two SSTables and remove duplicates in O(n) time. Use two pointer approach. 
+ 
+
+
+
 We introduce a new requirement to segment files: we require that the sequence of key-value pairs is _sorted by key_.
 
 We call this _Sorted String Table_, or _SSTable_. We require that each key only appears once within each merged segment file (compaction already ensures that). SSTables have few big advantages over log segments with hash indexes
